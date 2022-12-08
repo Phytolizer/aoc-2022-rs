@@ -171,13 +171,28 @@ pub fn advent_test(
         full_literals,
     } = syn::parse_macro_input!(input as AdventTestFn);
 
-    let mut output = proc_macro2::TokenStream::new();
-
-    let day_module = syn::Ident::new(format!("day{day_num:02}").as_str(), Span::call_site());
+    let day_module = syn::Ident::new(format!("dec{day_num:02}").as_str(), Span::call_site());
 
     let test_name = &input.sig.ident;
     let day_num_str = format!("{:02}", day_num);
-    let mut out_fn = quote! {
+    let mut stuff = vec![];
+    for part in 1..=2 {
+        let part = syn::LitInt::new(&format!("{part}_usize"), Span::call_site());
+        stuff.push(quote! {
+            for input in [simple_input, full_input] {
+                let expected = if input == simple_input {
+                    simple_expected[#part - 1]
+                } else {
+                    full_expected[#part - 1]
+                };
+
+                let output = crate::#day_module::run::<#part>(input);
+
+                assert_eq!(output, expected);
+            }
+        });
+    }
+    let out_fn = quote! {
         #[test]
         fn #test_name() {
             let simple_input = include_str!(concat!("../inputs/", #day_num_str, ".simple.txt"));
@@ -186,19 +201,7 @@ pub fn advent_test(
             let simple_expected = [#(#simple_literals),*];
             let full_expected = [#(#full_literals),*];
 
-            for part in 1..=2 {
-                for input in [simple_input, full_input] {
-                    let expected = if input == simple_input {
-                        simple_expected[part - 1]
-                    } else {
-                        full_expected[part - 1]
-                    };
-
-                    let output = crate::#day_module::run(input, part).unwrap();
-
-                    assert_eq!(output, expected);
-                }
-            }
+            #(#stuff)*
         }
     };
 
